@@ -1,6 +1,12 @@
 #include <emscripten/webaudio.h>
+#include <emscripten/em_math.h>
 
-u_int8_t audioThreadStack[4096];
+uint8_t audioThreadStack[4096];
+
+void AudioThreadInitialized(EMSCRIPTEN_WEBAUDIO_T audioContext, bool success, void *userData);
+void AudioWorkletProcessorCreated(EMSCRIPTEN_WEBAUDIO_T audioContext, bool success, void *userData);
+EM_BOOL GenerateNoise(int numInputs, const AudioSampleFrame *inputs, int numOutputs, AudioSampleFrame *outputs, int numParams, const AudioParamFrame *params, void *userData);
+EM_BOOL OnCanvasClick(int eventType, const EmscriptenMouseEvent *mouseEvent, void *userData);
 
 int main() {
     EMSCRIPTEN_WEBAUDIO_T context = emscripten_create_audio_context(0);
@@ -12,4 +18,36 @@ int main() {
 
 void AudioThreadInitialized(EMSCRIPTEN_WEBAUDIO_T audioContext, bool success,void *userData) {
     if(!success) return;
+}
+
+void AudioWorkletProcessorCreated(EMSCRIPTEN_WEBAUDIO_T audioContext, bool success, void *userData) {
+    if(!success) return;
+
+    int outputChannelCount[] = {1};
+    EmscriptenAudioWorkletNodeCreateOptions options = {
+        .numberOfInputs = 0,
+        .numberOfOutputs = 1,
+        .outputChannelCounts = outputChannelCount
+    };
+
+    EMSCRIPTEN_AUDIO_WORKLET_NODE_T wasmAudioWorklet = emscripten_create_wasm_audio_worklet_node(audioContext, "noise-generator", &options, &GenerateNoise ,0);
+    emscripten_audio_node_connect(wasmAudioWorklet, audioContext,0 ,0);
+    emscripten_set_click_callback("canvas", (void*)audioContext, 0 ,OnCanvasClick);
+}
+
+EM_BOOL GenerateNoise(int numInputs, const AudioSampleFrame *inputs, int numOutputs, AudioSampleFrame *output, int numParams, const AudioParamFrame *params, void *userData){
+    for(int i =  0; i < 128; ++i) {
+        output[0].data[i] = (float)emscripten_random() * 2.0f - 1.0f;
+    }
+
+    return EM_TRUE;
+}
+
+EM_BOOL OnCanvasClick(int eventType, const EmscriptenMouseEvent *mouseEvent, void *userData) {
+    EMSCRIPTEN_WEBAUDIO_T audioContext = (EMSCRIPTEN_WEBAUDIO_T) userData;
+    if(emscripten_audio_context_state(audioContext) != AUDIO_CONTEXT_STATE_RUNNING) {
+        emscripten_resume_audio_context_sync(audioContext);
+    }
+
+    return EM_FALSE;
 }
