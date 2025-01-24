@@ -18,16 +18,21 @@ int main() {
 
 void AudioThreadInitialized(EMSCRIPTEN_WEBAUDIO_T audioContext, bool success,void *userData) {
     if(!success) return;
+
+    WebAudioWorkletProcessorCreateOptions opts = {
+        .name = "noise-generator",
+    };
+    emscripten_create_wasm_audio_worklet_processor_async(audioContext, &opts, &AudioWorkletProcessorCreated, 0);
 }
 
 void AudioWorkletProcessorCreated(EMSCRIPTEN_WEBAUDIO_T audioContext, bool success, void *userData) {
     if(!success) return;
 
-    int outputChannelCount[] = {1};
+    int outputChannelCounts[] = {1};
     EmscriptenAudioWorkletNodeCreateOptions options = {
         .numberOfInputs = 0,
         .numberOfOutputs = 1,
-        .outputChannelCounts = outputChannelCount
+        .outputChannelCounts = outputChannelCounts
     };
 
     EMSCRIPTEN_AUDIO_WORKLET_NODE_T wasmAudioWorklet = emscripten_create_wasm_audio_worklet_node(audioContext, "noise-generator", &options, &GenerateNoise ,0);
